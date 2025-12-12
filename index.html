@@ -10,52 +10,45 @@
 
         /* VÍDEO (Fundo) */
         #camera { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+        
         /* MOLDURA (Meio) */
         #moldura { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: fill; z-index: 2; pointer-events: none; }
 
-        /* CONTROLES */
+        /* CONTROLES (AJUSTADO PARA FICAR BEM EMBAIXO) */
         .controls {
             position: absolute;
-            bottom: 12%;
+            bottom: 10px; /* Colado no fundo da tela */
             left: 0; width: 100%;
             display: flex; justify-content: center; align-items: center;
-            gap: 40px;
+            gap: 60px; /* Mais espaço entre os botões */
             z-index: 999;
         }
-        .btn { cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; }
+        
+        .btn { cursor: pointer; transition: transform 0.1s; }
         .btn:active { transform: scale(0.9); }
 
-        /* --- PERSONALIZAÇÃO HOT WHEELS --- */
-
-        /* Botão FOTO (Estilo Pneu com Fogo) */
+        /* --- BOTÃO DE FOTO (CÂMERA DIGITAL) --- */
         .btn-shot {
-            width: 85px; height: 85px;
-            background: #1a1a1a; /* Cor de pneu preto */
-            border: 4px solid #e74c3c; /* Borda vermelha */
+            width: 80px; height: 80px;
+            /* Imagem de ícone de câmera */
+            background-image: url('https://cdn-icons-png.flaticon.com/512/3687/3687416.png');
+            background-size: cover;
+            background-position: center;
+            background-color: white; /* Fundo branco para destacar */
             border-radius: 50%;
-            position: relative;
-            box-shadow: 0 0 15px #ff4500, inset 0 0 10px #000; /* Brilho de fogo */
-        }
-        /* Miolo do botão (Amarelo/Laranja) */
-        .btn-shot::after {
-            content: ''; position: absolute;
-            top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 60px; height: 60px;
-            background: radial-gradient(circle, #ffff00, #ff6b6b); /* Degradê fogo */
-            border: 3px solid #000;
-            border-radius: 50%;
+            border: 4px solid #fff;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
 
-        /* Botão VIRAR (Estilo Metálico) */
+        /* Botão VIRAR (Estilo Discreto) */
         .btn-flip {
-            width: 55px; height: 55px;
-            background: linear-gradient(145deg, #555555, #222222); /* Metal escuro */
-            border: 2px solid #777;
+            width: 50px; height: 50px;
+            background: rgba(0,0,0,0.6);
+            border: 2px solid white;
             border-radius: 50%;
-            color: #ffff00; /* Seta amarela */
-            font-size: 28px;
+            color: #ffff00;
+            font-size: 24px;
             display: flex; justify-content: center; align-items: center;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
         }
 
         /* TELA DE RESULTADO */
@@ -64,12 +57,24 @@
             background: rgba(0,0,0,0.95); z-index: 10000;
             flex-direction: column; align-items: center; justify-content: center;
         }
-        #result-img { max-width: 90%; max-height: 80%; border: 3px solid #ff4500; border-radius: 10px; }
-        #msg-save { color: #ffff00; font-family: sans-serif; margin-top: 20px; font-size: 18px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+        #result-img { 
+            max-width: 90%; 
+            max-height: 85%; 
+            border: 2px solid white; 
+            border-radius: 10px; 
+            box-shadow: 0 0 20px rgba(255, 69, 0, 0.5);
+        }
+        #msg-save { 
+            color: #ffff00; 
+            font-family: sans-serif; 
+            margin-top: 15px; 
+            font-size: 16px; 
+            text-align: center;
+        }
         .btn-close {
-            margin-top: 25px; padding: 12px 35px;
+            margin-top: 15px; padding: 10px 30px;
             background: #e74c3c; color: white; border: none; border-radius: 30px;
-            font-size: 18px; font-weight: bold; cursor: pointer;
+            font-size: 16px; font-weight: bold;
         }
     </style>
 </head>
@@ -84,8 +89,8 @@
 
     <div id="preview-screen">
         <img id="result-img" src="">
-        <p id="msg-save">🔥 Segure na foto para salvar! 🔥</p>
-        <button class="btn btn-close" onclick="fecharPreview()">VOLTAR PARA PISTA</button>
+        <p id="msg-save">👆 Segure na foto para Salvar!</p>
+        <button class="btn btn-close" onclick="fecharPreview()">Voltar</button>
     </div>
     <canvas id="canvasOutput" style="display:none;"></canvas>
 
@@ -95,7 +100,6 @@
         const canvas = document.getElementById('canvasOutput');
         const previewScreen = document.getElementById('preview-screen');
         const resultImg = document.getElementById('result-img');
-        // Link direto para um som de shutter curto (hospedado externamente para facilitar)
         const shutterSound = new Audio('https://cdn.pixabay.com/download/audio/2022/03/10/audio_c04f968038.mp3?filename=camera-shutter-click-03-58060.mp3');
         
         let currentStream;
@@ -112,15 +116,15 @@
         function virarCamera() { facingMode = facingMode === "user" ? "environment" : "user"; iniciarCamera(); }
 
         function tirarFoto() {
-            // TOCA O SOM!
-            shutterSound.play().catch(e => console.log("Som bloqueado pelo navegador"));
-
+            shutterSound.play().catch(e => console.log("Som auto bloqueado"));
+            
             canvas.width = video.videoWidth; canvas.height = video.videoHeight;
             const ctx = canvas.getContext('2d');
             if (facingMode === "user") { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.drawImage(moldura, 0, 0, canvas.width, canvas.height);
+            
             resultImg.src = canvas.toDataURL('image/png');
             previewScreen.style.display = "flex";
         }
