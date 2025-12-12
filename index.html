@@ -24,7 +24,7 @@
         .btn { cursor: pointer; transition: transform 0.1s; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
         .btn:active { transform: scale(0.9); }
 
-        /* 1. BOTÃO VIRAR (Seta Grossa) */
+        /* 1. BOTÃO VIRAR */
         .btn-flip {
             width: 50px; height: 50px;
             background: rgba(255, 69, 0, 0.6);
@@ -83,6 +83,7 @@
             max-width: 90%; max-height: 80%;
             border: 2px solid #ff4500; border-radius: 8px; margin-bottom: 20px;
         }
+        /* Botões de Ação na Prévia */
         .preview-actions { display: flex; gap: 15px; width: 95%; justify-content: center; }
         .btn-action {
             padding: 15px 10px; border-radius: 50px; border: none;
@@ -140,7 +141,7 @@
         let isRecording = false;
         let mediaBlobUrl = null;
         let captureType = 'image';
-        let useMp4 = false;
+        let recordedMimeType = ''; // Formato REAL da gravação
 
         function iniciarCamera() {
             if (currentStream) currentStream.getTracks().forEach(track => track.stop());
@@ -155,7 +156,8 @@
                 video.style.transform = facingMode === "user" ? "scaleX(-1)" : "scaleX(1)";
                 desenharNoCanvas();
             }).catch(err => {
-                console.log("Erro: " + err);
+                console.log("Erro permissão: " + err);
+                alert("Para gravar vídeo com som, é necessário permitir o microfone.");
             });
         }
         function virarCamera() { facingMode = facingMode === "user" ? "environment" : "user"; iniciarCamera(); }
@@ -187,30 +189,42 @@
                 const audioTracks = currentStream.getAudioTracks();
                 
                 if (audioTracks.length > 0) {
+                    // Combina vídeo e áudio sem forçar codecs estranhos
                     const combinedStream = new MediaStream([ ...canvasStream.getVideoTracks(), ...audioTracks ]);
                     
-                    // SIMPLIFICADO: Tenta MP4 primeiro, se não, usa o padrão do navegador
-                    let options;
-                    if (MediaRecorder.isTypeSupported('video/mp4')) {
-                        options = { mimeType: 'video/mp4' };
-                        useMp4 = true;
-                    } else {
-                        // Não especificamos codecs para evitar erro de compatibilidade
-                        // O navegador vai usar o que ele sabe fazer melhor (geralmente VP8/Opus)
-                        options = { mimeType: 'video/webm' }; 
-                        useMp4 = false;
-                    }
+                    // Verifica o que o navegador suporta DE VERDADE
+                    const possibleTypes = [
+                        'video/webm;codecs=vp9,opus',
+                        'video/webm;codecs=vp8,opus',
+                        'video/webm',
+                        'video/mp4'
+                    ];
 
-                    mediaRecorder = new MediaRecorder(combinedStream, options);
+                    let selectedType = '';
+                    for (let type of possibleTypes) {
+                        if (MediaRecorder.isTypeSupported(type)) {
+                            selectedType = type;
+                            break;
+                        }
+                    }
+                    
+                    // Se não achou nenhum específico, deixa o navegador decidir (string vazia)
+                    // Isso evita o erro de codec
+                    if (selectedType) {
+                        mediaRecorder = new MediaRecorder(combinedStream, { mimeType: selectedType });
+                    } else {
+                        mediaRecorder = new MediaRecorder(combinedStream);
+                    }
+                    
+                    recordedMimeType = mediaRecorder.mimeType; // Salva o que ele decidiu usar
                 } else {
-                    alert("Aviso: Microfone não detectado.");
                     mediaRecorder = new MediaRecorder(canvasStream);
                 }
 
                 recordedChunks = [];
                 mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
                 mediaRecorder.onstop = () => {
-                    const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
+                    const blob = new Blob(recordedChunks, { type: recordedMimeType });
                     mediaBlobUrl = URL.createObjectURL(blob);
                     
                     captureType = 'video';
@@ -219,10 +233,11 @@
                     resultImg.style.display = 'none';
                     previewScreen.style.display = 'flex'; 
                     
-                    resultVideo.muted = false; resultVideo.play();
+                    resultVideo.muted = false; 
+                    resultVideo.play();
                 };
                 mediaRecorder.start(); isRecording = true; btnVideo.classList.add('recording');
-            } catch (e) { alert("Erro ao iniciar: " + e); }
+            } catch (e) { alert("Erro crítico ao gravar: " + e); }
         }
 
         function pararGravacao() { mediaRecorder.stop(); isRecording = false; btnVideo.classList.remove('recording'); }
@@ -235,9 +250,14 @@
             } else { 
                 link.href = mediaBlobUrl; 
                 
-                // IMPORTANTE: Se o navegador gravou em WebM, vamos salvar como .webm
-                // Mudar para .mp4 "na marra" pode corromper o arquivo na Galeria do Android
-                const ext = useMp4 ? 'mp4' : 'webm';
+                // DETECÇÃO AUTOMÁTICA DE EXTENSÃO
+                // Se o navegador gravou MP4, salvamos MP4.
+                // Se gravou WebM, salvamos WebM.
+                let ext = 'webm';
+                if (recordedMimeType.includes('mp4')) {
+                    ext = 'mp4';
+                }
+                
                 link.download = `Video_Festa_${data.getTime()}.${ext}`; 
             }
             document.body.appendChild(link); link.click(); document.body.removeChild(link);
