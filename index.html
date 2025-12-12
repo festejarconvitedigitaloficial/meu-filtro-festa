@@ -18,8 +18,7 @@
         .controls {
             position: absolute; bottom: 15px; left: 0; width: 100%;
             display: flex; justify-content: center; align-items: center;
-            gap: 25px; /* Espaço ajustado */
-            z-index: 999;
+            gap: 25px; z-index: 999;
         }
         
         .btn { cursor: pointer; transition: transform 0.1s; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
@@ -33,7 +32,7 @@
             display: flex; justify-content: center; align-items: center;
         }
 
-        /* 2. BOTÃO FOTO (Central) */
+        /* 2. BOTÃO FOTO */
         .btn-shot {
             width: 80px; height: 80px;
             background: radial-gradient(circle, #ffff00, #ff4500, #b22222);
@@ -43,51 +42,39 @@
             background-size: 50%; background-position: center; background-repeat: no-repeat;
         }
 
-        /* 3. BOTÃO VÍDEO (Ícone BRANCO via CSS) */
+        /* 3. BOTÃO VÍDEO (Ícone Imagem Branca) */
         .btn-video {
             width: 65px; height: 65px;
-            background: #e74c3c; /* Vermelho base */
+            background: #e74c3c; /* Vermelho */
             border: 3px solid white;
             border-radius: 50%;
             display: flex; justify-content: center; align-items: center;
             position: relative;
         }
         
-        /* O desenho da câmera branca */
-        .icon-cam-body {
-            width: 24px; height: 16px;
-            background-color: white; /* Cor BRANCA */
-            border-radius: 3px;
-            position: relative;
-            margin-right: 4px; /* Ajuste fino */
-        }
-        .icon-cam-body::after {
-            content: ''; position: absolute;
-            top: 2px; right: -7px;
-            border-top: 6px solid transparent;
-            border-bottom: 6px solid transparent;
-            border-left: 8px solid white; /* Lente BRANCA */
+        /* Ícone SVG Branco embutido (Garante que seja branco) */
+        .icon-cam-img {
+            width: 30px; height: 30px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
         }
 
-        /* Estilo quando está GRAVANDO (Vira um quadrado de STOP) */
+        /* Estilo GRAVANDO (Quadrado Stop) */
         .recording {
             animation: pulse 1s infinite;
-            background-color: white !important; /* Fundo branco */
-            border-radius: 10px !important; /* Vira quadrado */
+            background-color: white !important;
+            border-radius: 10px !important;
         }
-        /* Esconde o ícone da câmera ao gravar */
-        .recording .icon-cam-body { display: none; }
-        
-        /* Cria o quadrado vermelho de STOP no meio */
-        .recording::after {
-            content: ''; position: absolute;
-            top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 22px; height: 22px; background: #e74c3c; border-radius: 3px;
+        .recording .icon-cam-img {
+            background-image: none; /* Remove ícone */
+            background-color: #e74c3c; /* Cria quadrado vermelho */
+            width: 24px; height: 24px; border-radius: 4px;
         }
 
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
 
-        /* TELA DE PREVIEW */
+        /* PREVIEW */
         #preview-screen {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #000; z-index: 10000;
@@ -115,13 +102,13 @@
         <button class="btn btn-flip" onclick="virarCamera()">↻</button>
         <button class="btn btn-shot" onclick="tirarFoto()"></button>
         <button id="btnVideo" class="btn btn-video" onclick="alternarGravacao()">
-            <div class="icon-cam-body"></div>
+            <div class="icon-cam-img"></div>
         </button>
     </div>
 
     <div id="preview-screen">
         <img id="result-img" class="preview-content" style="display:none;">
-        <video id="result-video" class="preview-content" controls loop style="display:none;"></video>
+        <video id="result-video" class="preview-content" controls loop playsinline style="display:none;"></video>
         <div class="preview-actions">
             <button class="btn-action btn-retry" onclick="fecharPreview()">Descartar</button>
             <button class="btn-action btn-save" onclick="salvarMidia()">⬇ Salvar</button>
@@ -150,13 +137,22 @@
 
         function iniciarCamera() {
             if (currentStream) currentStream.getTracks().forEach(track => track.stop());
-            // Pede vídeo e ÁUDIO explicitamente
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true })
+            
+            // Solicita vídeo e áudio
+            navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, 
+                audio: true 
+            })
             .then(stream => {
-                currentStream = stream; video.srcObject = stream;
+                currentStream = stream;
+                video.srcObject = stream;
+                // Espelhar apenas visualmente
                 video.style.transform = facingMode === "user" ? "scaleX(-1)" : "scaleX(1)";
                 desenharNoCanvas();
-            }).catch(err => alert("Erro: É necessário permitir Câmera e Microfone! " + err));
+            }).catch(err => {
+                alert("Por favor, permita o acesso ao Microfone e Câmera para gravar vídeo!");
+                console.error(err);
+            });
         }
         function virarCamera() { facingMode = facingMode === "user" ? "environment" : "user"; iniciarCamera(); }
 
@@ -183,29 +179,37 @@
 
         function iniciarGravacao() {
             try {
+                // 1. Pega imagem do Canvas
                 const canvasStream = canvas.captureStream(30);
                 
-                // CORREÇÃO DE ÁUDIO: Verifica e adiciona a faixa de áudio
+                // 2. FORÇA BRUTA NO ÁUDIO: Cria um Stream Combinado
                 const audioTracks = currentStream.getAudioTracks();
-                if (audioTracks.length > 0) {
-                    canvasStream.addTrack(audioTracks[0]);
-                } else {
-                    console.warn("Nenhuma faixa de áudio encontrada!");
-                }
                 
-                // Tenta forçar MP4 (melhor para celular), se não der, vai de WebM
-                let options = { mimeType: 'video/webm' };
-                if (MediaRecorder.isTypeSupported('video/mp4')) {
-                    options = { mimeType: 'video/mp4' };
-                } else if (MediaRecorder.isTypeSupported('video/webm;codecs=h264')) {
-                    options = { mimeType: 'video/webm;codecs=h264' };
+                if (audioTracks.length > 0) {
+                    // Cria um novo stream contendo explicitamente Vídeo + Áudio
+                    const combinedStream = new MediaStream([
+                        ...canvasStream.getVideoTracks(),
+                        ...audioTracks
+                    ]);
+                    
+                    // Tenta formatos compatíveis com celular (MP4 preferido)
+                    let options = { mimeType: 'video/webm' };
+                    if (MediaRecorder.isTypeSupported('video/mp4')) {
+                        options = { mimeType: 'video/mp4' };
+                    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+                        options = { mimeType: 'video/webm;codecs=vp8,opus' };
+                    }
+                    
+                    mediaRecorder = new MediaRecorder(combinedStream, options);
+                } else {
+                    alert("Atenção: Microfone não detectado. Vídeo ficará sem som.");
+                    mediaRecorder = new MediaRecorder(canvasStream);
                 }
 
-                mediaRecorder = new MediaRecorder(canvasStream, options);
                 recordedChunks = [];
                 mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
                 mediaRecorder.onstop = () => {
-                    const blob = new Blob(recordedChunks, { type: options.mimeType });
+                    const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
                     mediaBlobUrl = URL.createObjectURL(blob);
                     
                     captureType = 'video';
@@ -213,7 +217,11 @@
                     resultVideo.style.display = 'block'; 
                     resultImg.style.display = 'none';
                     previewScreen.style.display = 'flex'; 
-                    resultVideo.play(); // Toca o preview (verifique se sai som aqui)
+                    
+                    // Força reprodução do áudio no preview para teste
+                    resultVideo.muted = false; 
+                    resultVideo.volume = 1.0;
+                    resultVideo.play();
                 };
                 mediaRecorder.start(); isRecording = true; btnVideo.classList.add('recording');
             } catch (e) { alert("Erro ao gravar: " + e); }
@@ -228,8 +236,9 @@
                 link.download = `Foto_Festa_${data.getTime()}.png`; 
             } else { 
                 link.href = mediaBlobUrl; 
-                // Define extensão correta
-                const ext = mediaRecorder.mimeType.includes('mp4') ? 'mp4' : 'webm';
+                // Define extensão baseado no tipo real gravado
+                let ext = 'webm';
+                if (mediaRecorder.mimeType.includes('mp4')) ext = 'mp4';
                 link.download = `Video_Festa_${data.getTime()}.${ext}`; 
             }
             document.body.appendChild(link); link.click(); document.body.removeChild(link);
