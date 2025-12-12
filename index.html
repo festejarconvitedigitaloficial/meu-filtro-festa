@@ -24,7 +24,7 @@
         .btn { cursor: pointer; transition: transform 0.1s; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
         .btn:active { transform: scale(0.9); }
 
-        /* 1. BOTÃO VIRAR */
+        /* 1. BOTÃO VIRAR (Seta Grossa) */
         .btn-flip {
             width: 50px; height: 50px;
             background: rgba(255, 69, 0, 0.6);
@@ -46,7 +46,7 @@
             background-size: 50%; background-position: center; background-repeat: no-repeat;
         }
 
-        /* 3. BOTÃO VÍDEO */
+        /* 3. BOTÃO VÍDEO (Ícone Imagem Branca) */
         .btn-video {
             width: 65px; height: 65px;
             background: #e74c3c;
@@ -83,7 +83,6 @@
             max-width: 90%; max-height: 80%;
             border: 2px solid #ff4500; border-radius: 8px; margin-bottom: 20px;
         }
-        /* Botões de Ação na Prévia (Ajustados) */
         .preview-actions { display: flex; gap: 15px; width: 95%; justify-content: center; }
         .btn-action {
             padding: 15px 10px; border-radius: 50px; border: none;
@@ -141,14 +140,14 @@
         let isRecording = false;
         let mediaBlobUrl = null;
         let captureType = 'image';
-        let finalMimeType = '';
+        let recordedMimeType = ''; // Para guardar o tipo REAL do arquivo
 
         function iniciarCamera() {
             if (currentStream) currentStream.getTracks().forEach(track => track.stop());
             
             navigator.mediaDevices.getUserMedia({ 
                 video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, 
-                audio: true 
+                audio: true // IMPORTANTE: Pede microfone
             })
             .then(stream => {
                 currentStream = stream;
@@ -157,6 +156,7 @@
                 desenharNoCanvas();
             }).catch(err => {
                 console.log("Erro permissão: " + err);
+                alert("Ative o som do celular e permita o microfone!");
             });
         }
         function virarCamera() { facingMode = facingMode === "user" ? "environment" : "user"; iniciarCamera(); }
@@ -188,36 +188,29 @@
                 const audioTracks = currentStream.getAudioTracks();
                 
                 if (audioTracks.length > 0) {
-                    // Combina vídeo e áudio
+                    // Combina o vídeo do canvas com o áudio original
                     const combinedStream = new MediaStream([ ...canvasStream.getVideoTracks(), ...audioTracks ]);
                     
-                    // Lista de tentativas de formato (da melhor para a pior compatibilidade)
-                    const mimeTypes = [
-                        'video/mp4',
-                        'video/webm;codecs=h264',
-                        'video/webm;codecs=vp8,opus',
-                        'video/webm'
-                    ];
-
-                    let options = {};
-                    for (let type of mimeTypes) {
-                        if (MediaRecorder.isTypeSupported(type)) {
-                            options = { mimeType: type, audioBitsPerSecond: 128000 }; // Força qualidade de áudio
-                            finalMimeType = type;
-                            break;
-                        }
+                    // Tenta detectar o formato mais seguro para o dispositivo
+                    let options = { mimeType: 'video/webm' }; // Padrão seguro
+                    
+                    if (MediaRecorder.isTypeSupported('video/mp4')) {
+                        options = { mimeType: 'video/mp4', videoBitsPerSecond: 2500000, audioBitsPerSecond: 128000 };
+                    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+                        options = { mimeType: 'video/webm;codecs=vp8,opus', videoBitsPerSecond: 2500000, audioBitsPerSecond: 128000 };
                     }
                     
                     mediaRecorder = new MediaRecorder(combinedStream, options);
+                    recordedMimeType = mediaRecorder.mimeType; // Salva o tipo real
                 } else {
-                    alert("Microfone não encontrado. O vídeo ficará mudo.");
+                    alert("Microfone não ativado!");
                     mediaRecorder = new MediaRecorder(canvasStream);
                 }
 
                 recordedChunks = [];
                 mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
                 mediaRecorder.onstop = () => {
-                    const blob = new Blob(recordedChunks, { type: finalMimeType });
+                    const blob = new Blob(recordedChunks, { type: recordedMimeType });
                     mediaBlobUrl = URL.createObjectURL(blob);
                     
                     captureType = 'video';
@@ -226,8 +219,10 @@
                     resultImg.style.display = 'none';
                     previewScreen.style.display = 'flex'; 
                     
+                    // Configura o player de preview para tocar som
                     resultVideo.muted = false; 
                     resultVideo.volume = 1.0;
+                    resultVideo.load();
                     resultVideo.play();
                 };
                 mediaRecorder.start(); isRecording = true; btnVideo.classList.add('recording');
@@ -243,9 +238,15 @@
                 link.download = `Foto_Festa_${data.getTime()}.png`; 
             } else { 
                 link.href = mediaBlobUrl; 
-                // Define extensão correta
+                
+                // LÓGICA DE SALVAMENTO SEGURA
+                // Se o navegador gravou MP4, salvamos MP4.
+                // Se gravou WebM, salvamos WebM (para não quebrar o áudio).
                 let ext = 'webm';
-                if (finalMimeType.includes('mp4')) ext = 'mp4';
+                if (recordedMimeType.includes('mp4')) {
+                    ext = 'mp4';
+                }
+                
                 link.download = `Video_Festa_${data.getTime()}.${ext}`; 
             }
             document.body.appendChild(link); link.click(); document.body.removeChild(link);
