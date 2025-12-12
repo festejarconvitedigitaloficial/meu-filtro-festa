@@ -8,17 +8,16 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { margin: 0; padding: 0; background-color: #000; overflow: hidden; width: 100%; height: 100%; position: fixed; font-family: sans-serif; }
 
-        /* VÍDEO (Fundo) - O TRUQUE: Opacidade 0 em vez de display:none */
-        /* Isso obriga o celular a processar a imagem mesmo sem mostrar */
+        /* VÍDEO (Fundo) - Opacidade 0 para manter ativo sem mostrar */
         #camera { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
             object-fit: cover; z-index: -1; opacity: 0; 
         }
         
-        /* MOLDURA ESCONDIDA (Usada apenas pelo canvas) */
+        /* MOLDURA ESCONDIDA */
         #moldura { display: none; }
 
-        /* CANVAS PRINCIPAL (Onde vemos o filtro) */
+        /* CANVAS PRINCIPAL */
         #mainCanvas {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             object-fit: cover; z-index: 1;
@@ -106,9 +105,7 @@
 </head>
 <body>
     <video id="camera" autoplay playsinline muted></video> 
-    
     <img id="moldura" src="moldura.png" alt="Moldura">
-
     <canvas id="mainCanvas"></canvas>
 
     <div class="controls">
@@ -156,17 +153,12 @@
             navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true })
             .then(stream => {
                 currentStream = stream; video.srcObject = stream;
-                // Importante: Aguarda o vídeo começar a tocar para iniciar o desenho
-                video.onloadedmetadata = () => {
-                    video.play();
-                    desenharNoCanvas();
-                };
+                video.onloadedmetadata = () => { video.play(); desenharNoCanvas(); };
             }).catch(err => { console.log("Erro: " + err); alert("Permita câmera e microfone."); });
         }
         function virarCamera() { facingMode = facingMode === "user" ? "environment" : "user"; iniciarCamera(); }
 
         function desenharNoCanvas() {
-            // Verifica se o vídeo tem dados para desenhar
             if (video.readyState >= 2) { 
                 canvas.width = video.videoWidth; canvas.height = video.videoHeight;
                 const ctx = canvas.getContext('2d');
@@ -174,25 +166,26 @@
                 ctx.save();
                 if (facingMode === "user") { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
 
-                // 1. BASE
+                // 1. BASE NÍTIDA (A imagem original)
                 ctx.filter = 'none';
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-                // 2. CAMADA GLOW (SUAVIZAÇÃO)
-                ctx.globalAlpha = 0.5;
-                ctx.filter = 'blur(4px) brightness(1.15) saturate(1.1)'; 
+                // 2. SUAVIZAÇÃO LEVE (Apenas 30% de opacidade e Blur 1px)
+                // Isso tira a aspereza da pele sem embaçar os olhos
+                ctx.globalAlpha = 0.3;
+                ctx.filter = 'blur(1px) brightness(1.1)'; 
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
                 ctx.restore();
 
-                // 3. CORREÇÃO DE COR GERAL
+                // 3. AJUSTE DE COR (Saturação suave)
                 ctx.save();
                 ctx.globalAlpha = 1.0;
-                ctx.filter = 'contrast(1.05) saturate(1.05)';
+                ctx.filter = 'saturate(1.1) contrast(1.02)';
                 ctx.drawImage(canvas, 0, 0); 
                 ctx.restore();
 
-                // 4. MOLDURA
+                // 4. MOLDURA NÍTIDA
                 ctx.filter = 'none';
                 ctx.globalAlpha = 1.0;
                 ctx.drawImage(moldura, 0, 0, canvas.width, canvas.height);
