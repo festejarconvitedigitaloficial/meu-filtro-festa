@@ -5,121 +5,147 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Filtro Festa</title>
     <style>
-        body { 
-            margin: 0; 
-            padding: 0; 
-            background-color: #000; 
-            overflow: hidden; /* Impede rolagem */
-            width: 100vw; 
-            height: 100vh; 
-        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; padding: 0; background-color: #000; overflow: hidden; width: 100%; height: 100%; position: fixed; }
 
-        /* 1. Camada da Câmera (Fundo) */
+        /* VÍDEO (Fundo) */
         #camera {
-            position: fixed; /* Fixa na tela */
+            position: absolute;
             top: 0; left: 0;
-            width: 100%; 
-            height: 100%;
-            object-fit: cover; /* Preenche tudo (pode dar um leve zoom para não deixar borda preta) */
+            width: 100%; height: 100%;
+            object-fit: cover;
             z-index: 1;
         }
 
-        /* 2. Camada da Moldura (Meio) */
+        /* MOLDURA (Meio) */
         #moldura {
-            position: fixed;
+            position: absolute;
             top: 0; left: 0;
-            width: 100%; 
-            height: 100%;
-            object-fit: fill; /* Força a moldura a caber na tela inteira */
+            width: 100%; height: 100%;
+            object-fit: fill;
             z-index: 2;
-            pointer-events: none; /* Permite clicar através da imagem */
+            pointer-events: none; /* Deixa o clique passar */
         }
 
-        /* 3. Camada dos Botões (Frente Total) */
+        /* BOTÕES (Frente) */
         .controls {
-            position: fixed;
-            bottom: 40px; /* Sobe um pouco para fugir da barra do iPhone/Android */
+            position: absolute;
+            bottom: 15%; /* Bem mais alto para não sumir */
             left: 0;
             width: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 40px; /* Espaço entre botões */
-            z-index: 9999; /* Garante que fique MUITO na frente */
+            gap: 50px;
+            z-index: 999;
         }
 
-        /* Estilo do Botão de Foto */
-        .btn-shot {
-            width: 70px;
-            height: 70px;
-            background-color: transparent;
-            border-radius: 50%;
-            border: 5px solid white;
+        .btn {
             cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: scale(0.9); }
+
+        /* Botão FOTO */
+        .btn-shot {
+            width: 80px; height: 80px;
+            background: transparent;
+            border: 5px solid white;
+            border-radius: 50%;
             position: relative;
         }
-        /* Miolo do botão */
         .btn-shot::after {
             content: '';
             position: absolute;
             top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            width: 60px; height: 60px;
-            background-color: white;
+            width: 65px; height: 65px;
+            background: white;
             border-radius: 50%;
-            transition: 0.2s;
         }
-        .btn-shot:active::after { transform: translate(-50%, -50%) scale(0.8); background-color: #ddd; }
 
-        /* Estilo do Botão de Virar */
+        /* Botão VIRAR */
         .btn-flip {
-            width: 50px;
-            height: 50px;
-            background-color: rgba(0,0,0,0.6);
+            width: 55px; height: 55px;
+            background: rgba(255,255,255,0.3);
             border: 2px solid white;
             border-radius: 50%;
             color: white;
-            font-size: 24px;
+            font-size: 25px;
             display: flex; justify-content: center; align-items: center;
-            cursor: pointer;
         }
 
-        #canvasOutput { display: none; }
+        /* TELA DE RESULTADO (Pop-up) */
+        #preview-screen {
+            display: none; /* Escondido no começo */
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: black;
+            z-index: 10000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #result-img {
+            max-width: 90%;
+            max-height: 80%;
+            border: 2px solid white;
+            border-radius: 10px;
+        }
+        #msg-save {
+            color: white;
+            font-family: sans-serif;
+            margin-top: 15px;
+            font-size: 18px;
+            text-align: center;
+        }
+        .btn-close {
+            margin-top: 20px;
+            padding: 10px 30px;
+            background: white;
+            border: none;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: bold;
+            color: black;
+        }
     </style>
 </head>
 <body>
 
     <video id="camera" autoplay playsinline></video>
-    
     <img id="moldura" src="moldura.png" alt="Moldura">
 
     <div class="controls">
-        <button class="btn-flip" onclick="virarCamera()">↻</button>
-        <button class="btn-shot" onclick="tirarFoto()"></button>
+        <button class="btn btn-flip" onclick="virarCamera()">↻</button>
+        <button class="btn btn-shot" onclick="tirarFoto()"></button>
     </div>
 
-    <canvas id="canvasOutput"></canvas>
+    <div id="preview-screen">
+        <img id="result-img" src="">
+        <p id="msg-save">👆 Segure na foto para salvar!</p>
+        <button class="btn btn-close" onclick="fecharPreview()">Voltar</button>
+    </div>
+
+    <canvas id="canvasOutput" style="display:none;"></canvas>
 
     <script>
         const video = document.getElementById('camera');
         const moldura = document.getElementById('moldura');
         const canvas = document.getElementById('canvasOutput');
+        const previewScreen = document.getElementById('preview-screen');
+        const resultImg = document.getElementById('result-img');
+        
         let currentStream;
-        let facingMode = "user"; // Começa com frontal
+        let facingMode = "user";
 
         function iniciarCamera() {
-            if (currentStream) {
-                currentStream.getTracks().forEach(track => track.stop());
-            }
+            if (currentStream) currentStream.getTracks().forEach(track => track.stop());
 
-            // Configuração para tentar reduzir o zoom excessivo
-            // Pedimos uma resolução HD padrão que a maioria dos celulares aceita bem
             const constraints = {
-                video: { 
-                    facingMode: facingMode,
-                    width: { ideal: 1280 }, 
-                    height: { ideal: 720 }
-                },
+                video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
                 audio: false
             };
 
@@ -127,13 +153,9 @@
                 .then(stream => {
                     currentStream = stream;
                     video.srcObject = stream;
-                    // Espelha apenas se for frontal
                     video.style.transform = facingMode === "user" ? "scaleX(-1)" : "scaleX(1)";
                 })
-                .catch(err => {
-                    console.error(err);
-                    alert("Erro ao abrir câmera. Verifique as permissões.");
-                });
+                .catch(err => alert("Erro: " + err));
         }
 
         function virarCamera() {
@@ -142,32 +164,31 @@
         }
 
         function tirarFoto() {
-            // 1. Configura tamanho do canvas (Qualidade alta)
+            // 1. Configura Canvas
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             const ctx = canvas.getContext('2d');
 
-            // 2. Desenha o vídeo (tratando espelhamento)
+            // 2. Desenha Vídeo
             if (facingMode === "user") {
                 ctx.translate(canvas.width, 0);
                 ctx.scale(-1, 1);
             }
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            // Reseta transformação
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.setTransform(1, 0, 0, 1, 0, 0); // Reseta
 
-            // 3. Desenha a moldura (Esticando para cobrir a foto toda)
+            // 3. Desenha Moldura
             ctx.drawImage(moldura, 0, 0, canvas.width, canvas.height);
 
-            // 4. Salva
+            // 4. Mostra o resultado na tela (MODO SEGURO)
             const dataURL = canvas.toDataURL('image/png');
-            const link = document.createElement('a');
-            link.href = dataURL;
-            // Cria um nome de arquivo com data/hora para não repetir
-            const data = new Date();
-            link.download = `foto_festa_${data.getTime()}.png`;
-            link.click();
+            resultImg.src = dataURL;
+            previewScreen.style.display = "flex"; // Abre a janela preta com a foto
+        }
+
+        function fecharPreview() {
+            previewScreen.style.display = "none";
+            resultImg.src = "";
         }
 
         window.addEventListener('load', iniciarCamera);
