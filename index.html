@@ -24,12 +24,21 @@
         .btn { cursor: pointer; transition: transform 0.1s; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
         .btn:active { transform: scale(0.9); }
 
-        /* 1. BOTÃO VIRAR */
+        /* 1. BOTÃO VIRAR (Seta Grossa SVG) */
         .btn-flip {
             width: 50px; height: 50px;
             background: rgba(255, 69, 0, 0.6);
-            border: 2px solid white; border-radius: 50%; color: white; font-size: 24px;
+            border: 2px solid white; border-radius: 50%; 
             display: flex; justify-content: center; align-items: center;
+        }
+        /* Desenho da Seta Grossa */
+        .icon-refresh {
+            width: 30px; height: 30px;
+            fill: none;
+            stroke: white;
+            stroke-width: 4; /* Engrossa a linha */
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
 
         /* 2. BOTÃO FOTO */
@@ -45,30 +54,26 @@
         /* 3. BOTÃO VÍDEO (Ícone Imagem Branca) */
         .btn-video {
             width: 65px; height: 65px;
-            background: #e74c3c; /* Vermelho */
-            border: 3px solid white;
-            border-radius: 50%;
+            background: #e74c3c;
+            border: 3px solid white; border-radius: 50%;
             display: flex; justify-content: center; align-items: center;
             position: relative;
         }
-        
-        /* Ícone SVG Branco embutido (Garante que seja branco) */
         .icon-cam-img {
             width: 30px; height: 30px;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: center;
+            background-repeat: no-repeat; background-position: center;
         }
 
-        /* Estilo GRAVANDO (Quadrado Stop) */
+        /* Estilo GRAVANDO */
         .recording {
             animation: pulse 1s infinite;
             background-color: white !important;
             border-radius: 10px !important;
         }
         .recording .icon-cam-img {
-            background-image: none; /* Remove ícone */
-            background-color: #e74c3c; /* Cria quadrado vermelho */
+            background-image: none;
+            background-color: #e74c3c;
             width: 24px; height: 24px; border-radius: 4px;
         }
 
@@ -99,8 +104,16 @@
     <img id="moldura" src="moldura.png" alt="Moldura">
 
     <div class="controls">
-        <button class="btn btn-flip" onclick="virarCamera()">↻</button>
+        <button class="btn btn-flip" onclick="virarCamera()">
+            <svg class="icon-refresh" viewBox="0 0 24 24">
+                <path d="M23 4v6h-6"></path>
+                <path d="M1 20v-6h6"></path>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+        </button>
+        
         <button class="btn btn-shot" onclick="tirarFoto()"></button>
+        
         <button id="btnVideo" class="btn btn-video" onclick="alternarGravacao()">
             <div class="icon-cam-img"></div>
         </button>
@@ -135,10 +148,10 @@
         let mediaBlobUrl = null;
         let captureType = 'image';
 
+        // 1. INICIAR CÂMERA
         function iniciarCamera() {
             if (currentStream) currentStream.getTracks().forEach(track => track.stop());
             
-            // Solicita vídeo e áudio
             navigator.mediaDevices.getUserMedia({ 
                 video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, 
                 audio: true 
@@ -146,12 +159,10 @@
             .then(stream => {
                 currentStream = stream;
                 video.srcObject = stream;
-                // Espelhar apenas visualmente
                 video.style.transform = facingMode === "user" ? "scaleX(-1)" : "scaleX(1)";
                 desenharNoCanvas();
             }).catch(err => {
-                alert("Por favor, permita o acesso ao Microfone e Câmera para gravar vídeo!");
-                console.error(err);
+                alert("Atenção: Para o vídeo ter som, você precisa permitir o microfone!");
             });
         }
         function virarCamera() { facingMode = facingMode === "user" ? "environment" : "user"; iniciarCamera(); }
@@ -177,32 +188,39 @@
 
         function alternarGravacao() { isRecording ? pararGravacao() : iniciarGravacao(); }
 
+        // 2. GRAVAÇÃO INTELIGENTE
         function iniciarGravacao() {
             try {
-                // 1. Pega imagem do Canvas
                 const canvasStream = canvas.captureStream(30);
-                
-                // 2. FORÇA BRUTA NO ÁUDIO: Cria um Stream Combinado
                 const audioTracks = currentStream.getAudioTracks();
                 
                 if (audioTracks.length > 0) {
-                    // Cria um novo stream contendo explicitamente Vídeo + Áudio
-                    const combinedStream = new MediaStream([
-                        ...canvasStream.getVideoTracks(),
-                        ...audioTracks
-                    ]);
+                    const combinedStream = new MediaStream([...canvasStream.getVideoTracks(), ...audioTracks]);
                     
-                    // Tenta formatos compatíveis com celular (MP4 preferido)
-                    let options = { mimeType: 'video/webm' };
-                    if (MediaRecorder.isTypeSupported('video/mp4')) {
-                        options = { mimeType: 'video/mp4' };
-                    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
-                        options = { mimeType: 'video/webm;codecs=vp8,opus' };
+                    // Lista de formatos preferidos (Tenta MP4 primeiro)
+                    const mimeTypes = [
+                        'video/mp4',
+                        'video/webm;codecs=h264',
+                        'video/webm;codecs=vp9',
+                        'video/webm'
+                    ];
+
+                    let selectedMimeType = '';
+                    for (let type of mimeTypes) {
+                        if (MediaRecorder.isTypeSupported(type)) {
+                            selectedMimeType = type;
+                            break;
+                        }
                     }
-                    
-                    mediaRecorder = new MediaRecorder(combinedStream, options);
+
+                    if (!selectedMimeType) {
+                        alert("Seu navegador não suporta gravação de vídeo padrão.");
+                        return;
+                    }
+
+                    mediaRecorder = new MediaRecorder(combinedStream, { mimeType: selectedMimeType });
                 } else {
-                    alert("Atenção: Microfone não detectado. Vídeo ficará sem som.");
+                    alert("Microfone não detectado. O vídeo ficará sem som.");
                     mediaRecorder = new MediaRecorder(canvasStream);
                 }
 
@@ -217,10 +235,7 @@
                     resultVideo.style.display = 'block'; 
                     resultImg.style.display = 'none';
                     previewScreen.style.display = 'flex'; 
-                    
-                    // Força reprodução do áudio no preview para teste
-                    resultVideo.muted = false; 
-                    resultVideo.volume = 1.0;
+                    resultVideo.muted = false; // Garante som no preview
                     resultVideo.play();
                 };
                 mediaRecorder.start(); isRecording = true; btnVideo.classList.add('recording');
@@ -229,16 +244,22 @@
 
         function pararGravacao() { mediaRecorder.stop(); isRecording = false; btnVideo.classList.remove('recording'); }
 
+        // 3. SALVAMENTO CORRIGIDO
         function salvarMidia() {
             const link = document.createElement('a'); const data = new Date();
+            
             if (captureType === 'image') { 
                 link.href = resultImg.src; 
                 link.download = `Foto_Festa_${data.getTime()}.png`; 
             } else { 
                 link.href = mediaBlobUrl; 
-                // Define extensão baseado no tipo real gravado
+                // Define a extensão baseada no que o navegador realmente usou
+                // Se o navegador gravou em WebM mas salvamos como MP4, o áudio some.
+                // Agora salvamos com a extensão certa.
                 let ext = 'webm';
-                if (mediaRecorder.mimeType.includes('mp4')) ext = 'mp4';
+                if (mediaRecorder.mimeType.includes('mp4')) {
+                    ext = 'mp4';
+                }
                 link.download = `Video_Festa_${data.getTime()}.${ext}`; 
             }
             document.body.appendChild(link); link.click(); document.body.removeChild(link);
