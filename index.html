@@ -2,53 +2,182 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meu Filtro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Filtro de Festa</title>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background-color: black; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        /* O vídeo da câmera */
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; overflow: hidden; background-color: black; height: 100vh; width: 100vw; display: flex; flex-direction: column; align-items: center; }
+
+        /* Área da Câmera e Moldura */
+        #container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* Vídeo da Câmera (Fica no fundo) */
         #camera {
             position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            object-fit: cover; /* Preenche a tela */
-            transform: scaleX(-1); /* Espelha a imagem como selfie */
+            min-width: 100%;
+            min-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: cover; /* Faz a câmera preencher tudo */
             z-index: 1;
         }
-        /* A moldura PNG */
+
+        /* A Moldura PNG (Fica por cima) */
         #moldura {
             position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            object-fit: contain; /* Ajusta sem distorcer */
+            width: 100%;
+            height: 100%;
+            object-fit: fill; /* Estica a moldura para caber na tela exata */
             z-index: 2;
-            pointer-events: none; /* Deixa clicar na tela através da imagem */
+            pointer-events: none;
         }
+
+        /* Botões de Controle */
+        .controls {
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 10;
+            padding: 0 20px;
+        }
+
+        /* Botão de Tirar Foto */
+        .btn-shot {
+            width: 70px;
+            height: 70px;
+            background-color: white;
+            border-radius: 50%;
+            border: 4px solid rgba(200,200,200,0.5);
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .btn-shot:active { background-color: #ddd; transform: scale(0.95); }
+
+        /* Botão de Virar Câmera */
+        .btn-flip {
+            width: 50px;
+            height: 50px;
+            background-color: rgba(0,0,0,0.5);
+            border-radius: 50%;
+            border: 2px solid white;
+            color: white;
+            font-size: 24px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        /* Canvas Invisível para processar a foto */
+        #canvasOutput { display: none; }
     </style>
 </head>
 <body>
 
-    <video id="camera" autoplay playsinline></video>
-    
-    <img id="moldura" src="moldura.png" alt="Moldura do Filtro">
+    <div id="container">
+        <video id="camera" autoplay playsinline></video>
+        
+        <img id="moldura" src="moldura.png" alt="Moldura">
+
+        <div class="controls">
+            <button class="btn-flip" onclick="virarCamera()">↻</button>
+            
+            <button class="btn-shot" onclick="tirarFoto()"></button>
+            
+            <div style="width: 50px;"></div>
+        </div>
+    </div>
+
+    <canvas id="canvasOutput"></canvas>
 
     <script>
-        // Script para ativar a câmera
         const video = document.getElementById('camera');
+        const moldura = document.getElementById('moldura');
+        const canvas = document.getElementById('canvasOutput');
+        let currentStream;
+        let facingMode = "user"; // Começa com câmera frontal
 
-        // Tenta acessar a câmera frontal (user)
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
-                .then(function(stream) {
+        // 1. Função para Iniciar Câmera
+        function iniciarCamera() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+
+            const constraints = {
+                video: { 
+                    facingMode: facingMode,
+                    width: { ideal: 1080 },
+                    height: { ideal: 1920 }
+                },
+                audio: false
+            };
+
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then(stream => {
+                    currentStream = stream;
                     video.srcObject = stream;
+                    // Espelhar se for frontal
+                    if (facingMode === "user") {
+                        video.style.transform = "scaleX(-1)";
+                    } else {
+                        video.style.transform = "scaleX(1)";
+                    }
                 })
-                .catch(function(error) {
-                    console.log("Erro ao acessar câmera:", error);
-                    alert("Por favor, permita o acesso à câmera para usar o filtro.");
+                .catch(err => {
+                    alert("Erro ao acessar câmera: " + err);
                 });
-        } else {
-            alert("Seu navegador não suporta acesso à câmera aqui.");
         }
+
+        // 2. Função para Virar Câmera
+        function virarCamera() {
+            facingMode = facingMode === "user" ? "environment" : "user";
+            iniciarCamera();
+        }
+
+        // 3. Função para Tirar Foto (Mistura câmera + moldura)
+        function tirarFoto() {
+            // Configura o tamanho do canvas igual ao tamanho real do vídeo
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+
+            // Desenha o vídeo no canvas
+            // Se for frontal, precisa desenhar espelhado
+            if (facingMode === "user") {
+                ctx.translate(canvas.width, 0);
+                ctx.scale(-1, 1);
+            }
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Reseta transformação para desenhar a moldura normal
+            if (facingMode === "user") {
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+            }
+
+            // Desenha a moldura por cima (Esticada para caber)
+            ctx.drawImage(moldura, 0, 0, canvas.width, canvas.height);
+
+            // Cria o link de download
+            const dataURL = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.href = dataURL;
+            link.download = 'foto-festa.png';
+            link.click();
+        }
+
+        // Inicia tudo ao carregar
+        window.addEventListener('load', iniciarCamera);
     </script>
 </body>
 </html>
