@@ -14,67 +14,46 @@
         /* MOLDURA (Meio) */
         #moldura { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: fill; z-index: 2; pointer-events: none; }
 
-        /* CONTROLES (AJUSTADO PARA FICAR BEM EMBAIXO) */
+        /* CONTROLES (Ficam na parte inferior) */
         .controls {
             position: absolute;
-            bottom: 10px; /* Colado no fundo da tela */
+            bottom: 15px; /* Posição baixa */
             left: 0; width: 100%;
             display: flex; justify-content: center; align-items: center;
-            gap: 60px; /* Mais espaço entre os botões */
+            gap: 60px; /* Espaço entre os botões */
             z-index: 999;
         }
         
-        .btn { cursor: pointer; transition: transform 0.1s; }
-        .btn:active { transform: scale(0.9); }
+        .btn { cursor: pointer; transition: transform 0.1s, filter 0.1s; }
+        .btn:active { transform: scale(0.9); filter: brightness(1.2); }
 
-        /* --- BOTÃO DE FOTO (CÂMERA DIGITAL) --- */
+        /* --- BOTÃO DE FOTO (TEMA HOT WHEELS/FOGO) --- */
         .btn-shot {
-            width: 80px; height: 80px;
-            /* Imagem de ícone de câmera */
-            background-image: url('https://cdn-icons-png.flaticon.com/512/3687/3687416.png');
-            background-size: cover;
-            background-position: center;
-            background-color: white; /* Fundo branco para destacar */
+            width: 85px; height: 85px;
+            /* Degradê radial de amarelo para laranja/vermelho (estilo brasa) */
+            background: radial-gradient(circle, #ffff00, #ff4500, #b22222);
+            /* Borda grossa vermelha escura */
+            border: 4px solid #800000;
             border-radius: 50%;
-            border: 4px solid #fff;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            /* Brilho externo laranja */
+            box-shadow: 0 0 20px rgba(255, 69, 0, 0.8);
+            /* Ícone de câmera branco */
+            background-image: url('https://cdn-icons-png.flaticon.com/512/3687/3687416.png');
+            background-size: 50%;
+            background-position: center;
+            background-repeat: no-repeat;
         }
 
-        /* Botão VIRAR (Estilo Discreto) */
+        /* Botão VIRAR (Laranja translúcido para combinar) */
         .btn-flip {
-            width: 50px; height: 50px;
-            background: rgba(0,0,0,0.6);
+            width: 55px; height: 55px;
+            background: rgba(255, 69, 0, 0.6); /* Laranja semi-transparente */
             border: 2px solid white;
             border-radius: 50%;
-            color: #ffff00;
-            font-size: 24px;
+            color: white;
+            font-size: 26px;
             display: flex; justify-content: center; align-items: center;
-        }
-
-        /* TELA DE RESULTADO */
-        #preview-screen {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95); z-index: 10000;
-            flex-direction: column; align-items: center; justify-content: center;
-        }
-        #result-img { 
-            max-width: 90%; 
-            max-height: 85%; 
-            border: 2px solid white; 
-            border-radius: 10px; 
-            box-shadow: 0 0 20px rgba(255, 69, 0, 0.5);
-        }
-        #msg-save { 
-            color: #ffff00; 
-            font-family: sans-serif; 
-            margin-top: 15px; 
-            font-size: 16px; 
-            text-align: center;
-        }
-        .btn-close {
-            margin-top: 15px; padding: 10px 30px;
-            background: #e74c3c; color: white; border: none; border-radius: 30px;
-            font-size: 16px; font-weight: bold;
+            box-shadow: 0 0 10px rgba(255, 69, 0, 0.5);
         }
     </style>
 </head>
@@ -87,19 +66,13 @@
         <button class="btn btn-shot" onclick="tirarFoto()"></button>
     </div>
 
-    <div id="preview-screen">
-        <img id="result-img" src="">
-        <p id="msg-save">👆 Segure na foto para Salvar!</p>
-        <button class="btn btn-close" onclick="fecharPreview()">Voltar</button>
-    </div>
     <canvas id="canvasOutput" style="display:none;"></canvas>
 
     <script>
         const video = document.getElementById('camera');
         const moldura = document.getElementById('moldura');
         const canvas = document.getElementById('canvasOutput');
-        const previewScreen = document.getElementById('preview-screen');
-        const resultImg = document.getElementById('result-img');
+        // Som de obturador
         const shutterSound = new Audio('https://cdn.pixabay.com/download/audio/2022/03/10/audio_c04f968038.mp3?filename=camera-shutter-click-03-58060.mp3');
         
         let currentStream;
@@ -116,8 +89,10 @@
         function virarCamera() { facingMode = facingMode === "user" ? "environment" : "user"; iniciarCamera(); }
 
         function tirarFoto() {
-            shutterSound.play().catch(e => console.log("Som auto bloqueado"));
+            // Toca o som
+            shutterSound.play().catch(e => console.log("Som bloqueado"));
             
+            // Prepara a imagem no canvas
             canvas.width = video.videoWidth; canvas.height = video.videoHeight;
             const ctx = canvas.getContext('2d');
             if (facingMode === "user") { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
@@ -125,10 +100,21 @@
             ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.drawImage(moldura, 0, 0, canvas.width, canvas.height);
             
-            resultImg.src = canvas.toDataURL('image/png');
-            previewScreen.style.display = "flex";
+            // --- DOWNLOAD AUTOMÁTICO ---
+            // Cria um link temporário e clica nele para baixar
+            const dataURL = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.href = dataURL;
+            // Gera um nome de arquivo único com data e hora
+            const data = new Date();
+            const nomeArquivo = `Foto_HotWheels_${data.getTime()}.png`;
+            link.download = nomeArquivo;
+            
+            document.body.appendChild(link);
+            link.click(); // Simula o clique para baixar
+            document.body.removeChild(link); // Limpa o link
         }
-        function fecharPreview() { previewScreen.style.display = "none"; resultImg.src = ""; }
+
         window.addEventListener('load', iniciarCamera);
     </script>
 </body>
