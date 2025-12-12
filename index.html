@@ -8,8 +8,12 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { margin: 0; padding: 0; background-color: #000; overflow: hidden; width: 100%; height: 100%; position: fixed; font-family: sans-serif; }
 
-        /* VÍDEO (Fundo) */
-        #camera { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+        /* VÍDEO (Fundo) - Aplica o filtro visualmente na tela também */
+        #camera { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; 
+            /* Filtro CSS para o usuário ver o efeito ao vivo */
+            filter: saturate(1.2) brightness(1.1) contrast(1.05) blur(0.3px);
+        }
         
         /* MOLDURA (Meio) */
         #moldura { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: fill; z-index: 2; pointer-events: none; }
@@ -83,7 +87,6 @@
             max-width: 90%; max-height: 80%;
             border: 2px solid #ff4500; border-radius: 8px; margin-bottom: 20px;
         }
-        /* Botões de Ação na Prévia */
         .preview-actions { display: flex; gap: 15px; width: 95%; justify-content: center; }
         .btn-action {
             padding: 15px 10px; border-radius: 50px; border: none;
@@ -141,7 +144,7 @@
         let isRecording = false;
         let mediaBlobUrl = null;
         let captureType = 'image';
-        let recordedMimeType = ''; // Formato REAL da gravação
+        let recordedMimeType = ''; 
 
         function iniciarCamera() {
             if (currentStream) currentStream.getTracks().forEach(track => track.stop());
@@ -156,8 +159,8 @@
                 video.style.transform = facingMode === "user" ? "scaleX(-1)" : "scaleX(1)";
                 desenharNoCanvas();
             }).catch(err => {
-                console.log("Erro permissão: " + err);
-                alert("Para gravar vídeo com som, é necessário permitir o microfone.");
+                console.log("Erro: " + err);
+                alert("Permita câmera e microfone.");
             });
         }
         function virarCamera() { facingMode = facingMode === "user" ? "environment" : "user"; iniciarCamera(); }
@@ -166,8 +169,17 @@
             if (video.readyState === video.HAVE_ENOUGH_DATA) {
                 canvas.width = video.videoWidth; canvas.height = video.videoHeight;
                 const ctx = canvas.getContext('2d');
+
+                // 1. APLICA O FILTRO DE EMBELEZAMENTO
+                // Saturação 1.2 (Cores vivas), Brilho 1.1 (Mais claro), Blur 0.5px (Suaviza pele)
+                ctx.filter = 'saturate(1.2) brightness(1.1) contrast(1.05) blur(0.5px)';
+
                 if (facingMode === "user") { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // 2. RESETA O FILTRO (Para não borrar a moldura)
+                ctx.filter = 'none';
+                
                 ctx.setTransform(1, 0, 0, 1, 0, 0);
                 ctx.drawImage(moldura, 0, 0, canvas.width, canvas.height);
             }
@@ -189,34 +201,24 @@
                 const audioTracks = currentStream.getAudioTracks();
                 
                 if (audioTracks.length > 0) {
-                    // Combina vídeo e áudio sem forçar codecs estranhos
                     const combinedStream = new MediaStream([ ...canvasStream.getVideoTracks(), ...audioTracks ]);
                     
-                    // Verifica o que o navegador suporta DE VERDADE
                     const possibleTypes = [
-                        'video/webm;codecs=vp9,opus',
-                        'video/webm;codecs=vp8,opus',
-                        'video/webm',
-                        'video/mp4'
+                        'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus',
+                        'video/webm', 'video/mp4'
                     ];
 
                     let selectedType = '';
                     for (let type of possibleTypes) {
-                        if (MediaRecorder.isTypeSupported(type)) {
-                            selectedType = type;
-                            break;
-                        }
+                        if (MediaRecorder.isTypeSupported(type)) { selectedType = type; break; }
                     }
                     
-                    // Se não achou nenhum específico, deixa o navegador decidir (string vazia)
-                    // Isso evita o erro de codec
                     if (selectedType) {
                         mediaRecorder = new MediaRecorder(combinedStream, { mimeType: selectedType });
                     } else {
                         mediaRecorder = new MediaRecorder(combinedStream);
                     }
-                    
-                    recordedMimeType = mediaRecorder.mimeType; // Salva o que ele decidiu usar
+                    recordedMimeType = mediaRecorder.mimeType;
                 } else {
                     mediaRecorder = new MediaRecorder(canvasStream);
                 }
@@ -232,12 +234,10 @@
                     resultVideo.style.display = 'block'; 
                     resultImg.style.display = 'none';
                     previewScreen.style.display = 'flex'; 
-                    
-                    resultVideo.muted = false; 
-                    resultVideo.play();
+                    resultVideo.muted = false; resultVideo.play();
                 };
                 mediaRecorder.start(); isRecording = true; btnVideo.classList.add('recording');
-            } catch (e) { alert("Erro crítico ao gravar: " + e); }
+            } catch (e) { alert("Erro ao iniciar: " + e); }
         }
 
         function pararGravacao() { mediaRecorder.stop(); isRecording = false; btnVideo.classList.remove('recording'); }
@@ -249,15 +249,8 @@
                 link.download = `Foto_Festa_${data.getTime()}.png`; 
             } else { 
                 link.href = mediaBlobUrl; 
-                
-                // DETECÇÃO AUTOMÁTICA DE EXTENSÃO
-                // Se o navegador gravou MP4, salvamos MP4.
-                // Se gravou WebM, salvamos WebM.
                 let ext = 'webm';
-                if (recordedMimeType.includes('mp4')) {
-                    ext = 'mp4';
-                }
-                
+                if (recordedMimeType.includes('mp4')) { ext = 'mp4'; }
                 link.download = `Video_Festa_${data.getTime()}.${ext}`; 
             }
             document.body.appendChild(link); link.click(); document.body.removeChild(link);
