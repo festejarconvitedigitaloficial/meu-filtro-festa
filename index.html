@@ -8,11 +8,21 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { margin: 0; padding: 0; background-color: #000; overflow: hidden; width: 100%; height: 100%; position: fixed; font-family: sans-serif; }
 
-        /* VÍDEO (Fundo) */
-        #camera { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+        /* VÍDEO (Fundo) - O TRUQUE: Opacidade 0 em vez de display:none */
+        /* Isso obriga o celular a processar a imagem mesmo sem mostrar */
+        #camera { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            object-fit: cover; z-index: -1; opacity: 0; 
+        }
         
-        /* MOLDURA (Meio) */
-        #moldura { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: fill; z-index: 2; pointer-events: none; }
+        /* MOLDURA ESCONDIDA (Usada apenas pelo canvas) */
+        #moldura { display: none; }
+
+        /* CANVAS PRINCIPAL (Onde vemos o filtro) */
+        #mainCanvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover; z-index: 1;
+        }
 
         /* CONTROLES */
         .controls {
@@ -95,7 +105,11 @@
     </style>
 </head>
 <body>
-    <video id="camera" autoplay playsinline muted style="display:none;"></video> <img id="moldura" src="moldura.png" alt="Moldura" style="display:none;"> <canvas id="mainCanvas" style="position: fixed; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index:1;"></canvas>
+    <video id="camera" autoplay playsinline muted></video> 
+    
+    <img id="moldura" src="moldura.png" alt="Moldura">
+
+    <canvas id="mainCanvas"></canvas>
 
     <div class="controls">
         <button class="btn btn-flip" onclick="virarCamera()">
@@ -121,7 +135,7 @@
     <script>
         const video = document.getElementById('camera');
         const moldura = document.getElementById('moldura');
-        const canvas = document.getElementById('mainCanvas'); // Usamos o canvas principal
+        const canvas = document.getElementById('mainCanvas'); 
         const previewScreen = document.getElementById('preview-screen');
         const resultImg = document.getElementById('result-img');
         const resultVideo = document.getElementById('result-video');
@@ -142,42 +156,43 @@
             navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true })
             .then(stream => {
                 currentStream = stream; video.srcObject = stream;
-                // Não precisamos mais espelhar o vídeo cru, faremos no canvas
-                desenharNoCanvas();
+                // Importante: Aguarda o vídeo começar a tocar para iniciar o desenho
+                video.onloadedmetadata = () => {
+                    video.play();
+                    desenharNoCanvas();
+                };
             }).catch(err => { console.log("Erro: " + err); alert("Permita câmera e microfone."); });
         }
         function virarCamera() { facingMode = facingMode === "user" ? "environment" : "user"; iniciarCamera(); }
 
-        // --- O SEGREDO DO EMBELEZAMENTO ESTÁ AQUI ---
         function desenharNoCanvas() {
-            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            // Verifica se o vídeo tem dados para desenhar
+            if (video.readyState >= 2) { 
                 canvas.width = video.videoWidth; canvas.height = video.videoHeight;
                 const ctx = canvas.getContext('2d');
 
-                // Configura espelhamento se for câmera frontal
-                ctx.save(); // Salva o estado normal
+                ctx.save();
                 if (facingMode === "user") { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
 
-                // PASSADA 1: Desenha a câmera NÍTIDA (Base)
+                // 1. BASE
                 ctx.filter = 'none';
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-                // PASSADA 2: Desenha a câmera DESFOCADA por cima (Efeito Glow/Soft skin)
-                ctx.globalAlpha = 0.5; // 50% de transparência na camada de desfoque
-                // Blur de 4px para suavizar bem, mais brilho para clarear
+                // 2. CAMADA GLOW (SUAVIZAÇÃO)
+                ctx.globalAlpha = 0.5;
                 ctx.filter = 'blur(4px) brightness(1.15) saturate(1.1)'; 
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-                ctx.restore(); // Restaura o estado (tira o espelhamento e transparência)
-
-                // PASSADA 3: Ajuste final de cor na imagem inteira
-                ctx.save();
-                ctx.globalAlpha = 1.0;
-                ctx.filter = 'contrast(1.05) saturate(1.05)'; // Leve contraste final
-                ctx.drawImage(canvas, 0, 0); // Desenha o canvas sobre ele mesmo com o filtro
                 ctx.restore();
 
-                // PASSADA 4: Desenha a moldura NÍTIDA por cima de tudo
+                // 3. CORREÇÃO DE COR GERAL
+                ctx.save();
+                ctx.globalAlpha = 1.0;
+                ctx.filter = 'contrast(1.05) saturate(1.05)';
+                ctx.drawImage(canvas, 0, 0); 
+                ctx.restore();
+
+                // 4. MOLDURA
                 ctx.filter = 'none';
                 ctx.globalAlpha = 1.0;
                 ctx.drawImage(moldura, 0, 0, canvas.width, canvas.height);
