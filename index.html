@@ -3,100 +3,99 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Filtro de Festa</title>
+    <title>Filtro Festa</title>
     <style>
-        * { box-sizing: border-box; }
-        body { margin: 0; padding: 0; overflow: hidden; background-color: black; height: 100vh; width: 100vw; display: flex; flex-direction: column; align-items: center; }
-
-        /* Área da Câmera e Moldura */
-        #container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            overflow: hidden;
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background-color: #000; 
+            overflow: hidden; /* Impede rolagem */
+            width: 100vw; 
+            height: 100vh; 
         }
 
-        /* Vídeo da Câmera (Fica no fundo) */
+        /* 1. Camada da Câmera (Fundo) */
         #camera {
-            position: absolute;
-            min-width: 100%;
-            min-height: 100%;
-            width: auto;
-            height: auto;
-            object-fit: cover; /* Faz a câmera preencher tudo */
+            position: fixed; /* Fixa na tela */
+            top: 0; left: 0;
+            width: 100%; 
+            height: 100%;
+            object-fit: cover; /* Preenche tudo (pode dar um leve zoom para não deixar borda preta) */
             z-index: 1;
         }
 
-        /* A Moldura PNG (Fica por cima) */
+        /* 2. Camada da Moldura (Meio) */
         #moldura {
-            position: absolute;
-            width: 100%;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; 
             height: 100%;
-            object-fit: fill; /* Estica a moldura para caber na tela exata */
+            object-fit: fill; /* Força a moldura a caber na tela inteira */
             z-index: 2;
-            pointer-events: none;
+            pointer-events: none; /* Permite clicar através da imagem */
         }
 
-        /* Botões de Controle */
+        /* 3. Camada dos Botões (Frente Total) */
         .controls {
-            position: absolute;
-            bottom: 30px;
+            position: fixed;
+            bottom: 40px; /* Sobe um pouco para fugir da barra do iPhone/Android */
+            left: 0;
             width: 100%;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            z-index: 10;
-            padding: 0 20px;
-        }
-
-        /* Botão de Tirar Foto */
-        .btn-shot {
-            width: 70px;
-            height: 70px;
-            background-color: white;
-            border-radius: 50%;
-            border: 4px solid rgba(200,200,200,0.5);
-            cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-        }
-        .btn-shot:active { background-color: #ddd; transform: scale(0.95); }
-
-        /* Botão de Virar Câmera */
-        .btn-flip {
-            width: 50px;
-            height: 50px;
-            background-color: rgba(0,0,0,0.5);
-            border-radius: 50%;
-            border: 2px solid white;
-            color: white;
-            font-size: 24px;
             display: flex;
             justify-content: center;
             align-items: center;
+            gap: 40px; /* Espaço entre botões */
+            z-index: 9999; /* Garante que fique MUITO na frente */
+        }
+
+        /* Estilo do Botão de Foto */
+        .btn-shot {
+            width: 70px;
+            height: 70px;
+            background-color: transparent;
+            border-radius: 50%;
+            border: 5px solid white;
+            cursor: pointer;
+            position: relative;
+        }
+        /* Miolo do botão */
+        .btn-shot::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px; height: 60px;
+            background-color: white;
+            border-radius: 50%;
+            transition: 0.2s;
+        }
+        .btn-shot:active::after { transform: translate(-50%, -50%) scale(0.8); background-color: #ddd; }
+
+        /* Estilo do Botão de Virar */
+        .btn-flip {
+            width: 50px;
+            height: 50px;
+            background-color: rgba(0,0,0,0.6);
+            border: 2px solid white;
+            border-radius: 50%;
+            color: white;
+            font-size: 24px;
+            display: flex; justify-content: center; align-items: center;
             cursor: pointer;
         }
 
-        /* Canvas Invisível para processar a foto */
         #canvasOutput { display: none; }
     </style>
 </head>
 <body>
 
-    <div id="container">
-        <video id="camera" autoplay playsinline></video>
-        
-        <img id="moldura" src="moldura.png" alt="Moldura">
+    <video id="camera" autoplay playsinline></video>
+    
+    <img id="moldura" src="moldura.png" alt="Moldura">
 
-        <div class="controls">
-            <button class="btn-flip" onclick="virarCamera()">↻</button>
-            
-            <button class="btn-shot" onclick="tirarFoto()"></button>
-            
-            <div style="width: 50px;"></div>
-        </div>
+    <div class="controls">
+        <button class="btn-flip" onclick="virarCamera()">↻</button>
+        <button class="btn-shot" onclick="tirarFoto()"></button>
     </div>
 
     <canvas id="canvasOutput"></canvas>
@@ -106,19 +105,20 @@
         const moldura = document.getElementById('moldura');
         const canvas = document.getElementById('canvasOutput');
         let currentStream;
-        let facingMode = "user"; // Começa com câmera frontal
+        let facingMode = "user"; // Começa com frontal
 
-        // 1. Função para Iniciar Câmera
         function iniciarCamera() {
             if (currentStream) {
                 currentStream.getTracks().forEach(track => track.stop());
             }
 
+            // Configuração para tentar reduzir o zoom excessivo
+            // Pedimos uma resolução HD padrão que a maioria dos celulares aceita bem
             const constraints = {
                 video: { 
                     facingMode: facingMode,
-                    width: { ideal: 1080 },
-                    height: { ideal: 1920 }
+                    width: { ideal: 1280 }, 
+                    height: { ideal: 720 }
                 },
                 audio: false
             };
@@ -127,56 +127,49 @@
                 .then(stream => {
                     currentStream = stream;
                     video.srcObject = stream;
-                    // Espelhar se for frontal
-                    if (facingMode === "user") {
-                        video.style.transform = "scaleX(-1)";
-                    } else {
-                        video.style.transform = "scaleX(1)";
-                    }
+                    // Espelha apenas se for frontal
+                    video.style.transform = facingMode === "user" ? "scaleX(-1)" : "scaleX(1)";
                 })
                 .catch(err => {
-                    alert("Erro ao acessar câmera: " + err);
+                    console.error(err);
+                    alert("Erro ao abrir câmera. Verifique as permissões.");
                 });
         }
 
-        // 2. Função para Virar Câmera
         function virarCamera() {
             facingMode = facingMode === "user" ? "environment" : "user";
             iniciarCamera();
         }
 
-        // 3. Função para Tirar Foto (Mistura câmera + moldura)
         function tirarFoto() {
-            // Configura o tamanho do canvas igual ao tamanho real do vídeo
+            // 1. Configura tamanho do canvas (Qualidade alta)
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             const ctx = canvas.getContext('2d');
 
-            // Desenha o vídeo no canvas
-            // Se for frontal, precisa desenhar espelhado
+            // 2. Desenha o vídeo (tratando espelhamento)
             if (facingMode === "user") {
                 ctx.translate(canvas.width, 0);
                 ctx.scale(-1, 1);
             }
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
-            // Reseta transformação para desenhar a moldura normal
-            if (facingMode === "user") {
-                ctx.setTransform(1, 0, 0, 1, 0, 0);
-            }
+            // Reseta transformação
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-            // Desenha a moldura por cima (Esticada para caber)
+            // 3. Desenha a moldura (Esticando para cobrir a foto toda)
             ctx.drawImage(moldura, 0, 0, canvas.width, canvas.height);
 
-            // Cria o link de download
+            // 4. Salva
             const dataURL = canvas.toDataURL('image/png');
             const link = document.createElement('a');
             link.href = dataURL;
-            link.download = 'foto-festa.png';
+            // Cria um nome de arquivo com data/hora para não repetir
+            const data = new Date();
+            link.download = `foto_festa_${data.getTime()}.png`;
             link.click();
         }
 
-        // Inicia tudo ao carregar
         window.addEventListener('load', iniciarCamera);
     </script>
 </body>
