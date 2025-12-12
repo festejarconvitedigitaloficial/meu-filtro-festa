@@ -6,7 +6,7 @@
     <title>Filtro Hot Wheels</title>
     <style>
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { margin: 0; padding: 0; background-color: #000; overflow: hidden; width: 100%; height: 100%; position: fixed; }
+        body { margin: 0; padding: 0; background-color: #000; overflow: hidden; width: 100%; height: 100%; position: fixed; font-family: sans-serif; }
 
         /* VÍDEO (Fundo) */
         #camera { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
@@ -14,56 +14,103 @@
         /* MOLDURA (Meio) */
         #moldura { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: fill; z-index: 2; pointer-events: none; }
 
-        /* CONTROLES (Ficam na parte inferior) */
+        /* CONTROLES PRINCIPAIS (Câmera) */
         .controls {
             position: absolute;
-            bottom: 15px; /* Posição baixa */
+            bottom: 15px;
             left: 0; width: 100%;
             display: flex; justify-content: center; align-items: center;
-            gap: 60px; /* Espaço entre os botões */
+            gap: 60px;
             z-index: 999;
         }
         
-        .btn { cursor: pointer; transition: transform 0.1s, filter 0.1s; }
-        .btn:active { transform: scale(0.9); filter: brightness(1.2); }
+        .btn { cursor: pointer; transition: transform 0.1s; }
+        .btn:active { transform: scale(0.9); }
 
-        /* --- BOTÃO DE FOTO (TEMA HOT WHEELS/FOGO) --- */
+        /* BOTÃO DE FOTO (TEMA HOT WHEELS) */
         .btn-shot {
             width: 85px; height: 85px;
-            /* Degradê radial de amarelo para laranja/vermelho (estilo brasa) */
             background: radial-gradient(circle, #ffff00, #ff4500, #b22222);
-            /* Borda grossa vermelha escura */
             border: 4px solid #800000;
             border-radius: 50%;
-            /* Brilho externo laranja */
             box-shadow: 0 0 20px rgba(255, 69, 0, 0.8);
-            /* Ícone de câmera branco */
             background-image: url('https://cdn-icons-png.flaticon.com/512/3687/3687416.png');
-            background-size: 50%;
-            background-position: center;
-            background-repeat: no-repeat;
+            background-size: 50%; background-position: center; background-repeat: no-repeat;
         }
 
-        /* Botão VIRAR (Laranja translúcido para combinar) */
+        /* Botão VIRAR */
         .btn-flip {
             width: 55px; height: 55px;
-            background: rgba(255, 69, 0, 0.6); /* Laranja semi-transparente */
+            background: rgba(255, 69, 0, 0.6);
             border: 2px solid white;
             border-radius: 50%;
-            color: white;
-            font-size: 26px;
+            color: white; font-size: 26px;
             display: flex; justify-content: center; align-items: center;
-            box-shadow: 0 0 10px rgba(255, 69, 0, 0.5);
         }
+
+        /* --- TELA DE PREVIEW (ONDE APARECEM OS 2 BOTÕES) --- */
+        #preview-screen {
+            display: none; /* Começa escondido */
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; /* Fundo preto para destacar a foto */
+            z-index: 10000;
+            flex-direction: column; align-items: center; justify-content: center;
+        }
+
+        #result-img {
+            width: auto; height: 80%; /* Ocupa a maior parte da tela */
+            border: 2px solid #ff4500;
+            border-radius: 8px;
+            box-shadow: 0 0 30px rgba(255, 69, 0, 0.5);
+            margin-bottom: 20px;
+        }
+
+        /* Container dos botões de ação */
+        .preview-actions {
+            display: flex; gap: 15px; width: 90%; justify-content: center;
+        }
+
+        .btn-action {
+            padding: 15px 20px;
+            border-radius: 50px;
+            border: none;
+            color: white;
+            font-size: 16px; font-weight: bold; text-transform: uppercase;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            display: flex; align-items: center; gap: 8px;
+        }
+        
+        /* Botão Verde (Salvar) */
+        .btn-save { background: linear-gradient(to right, #27ae60, #2ecc71); border: 2px solid #fff; }
+        /* Botão Vermelho/Laranja (Tirar outra) */
+        .btn-retry { background: linear-gradient(to right, #c0392b, #e74c3c); border: 2px solid #fff; }
+
     </style>
 </head>
 <body>
-    <video id="camera" autoplay playsinline></video>
-    <img id="moldura" src="moldura.png" alt="Moldura">
+    
+    <div id="live-screen">
+        <video id="camera" autoplay playsinline></video>
+        <img id="moldura" src="moldura.png" alt="Moldura">
+        <div class="controls">
+            <button class="btn btn-flip" onclick="virarCamera()">↻</button>
+            <button class="btn btn-shot" onclick="tirarFoto()"></button>
+        </div>
+    </div>
 
-    <div class="controls">
-        <button class="btn btn-flip" onclick="virarCamera()">↻</button>
-        <button class="btn btn-shot" onclick="tirarFoto()"></button>
+    <div id="preview-screen">
+        <img id="result-img" src="">
+        
+        <div class="preview-actions">
+            <button class="btn btn-action btn-retry" onclick="fecharPreview()">
+                📸 Tirar outra
+            </button>
+            
+            <button class="btn btn-action btn-save" onclick="salvarFoto()">
+                ⬇ Salvar na Galeria
+            </button>
+        </div>
     </div>
 
     <canvas id="canvasOutput" style="display:none;"></canvas>
@@ -72,12 +119,14 @@
         const video = document.getElementById('camera');
         const moldura = document.getElementById('moldura');
         const canvas = document.getElementById('canvasOutput');
-        // Som de obturador
+        const previewScreen = document.getElementById('preview-screen');
+        const resultImg = document.getElementById('result-img');
         const shutterSound = new Audio('https://cdn.pixabay.com/download/audio/2022/03/10/audio_c04f968038.mp3?filename=camera-shutter-click-03-58060.mp3');
         
         let currentStream;
         let facingMode = "user";
 
+        // 1. INICIAR CÂMERA
         function iniciarCamera() {
             if (currentStream) currentStream.getTracks().forEach(track => track.stop());
             navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
@@ -88,11 +137,10 @@
         }
         function virarCamera() { facingMode = facingMode === "user" ? "environment" : "user"; iniciarCamera(); }
 
+        // 2. TIRAR A FOTO (Congela e mostra a prévia)
         function tirarFoto() {
-            // Toca o som
             shutterSound.play().catch(e => console.log("Som bloqueado"));
             
-            // Prepara a imagem no canvas
             canvas.width = video.videoWidth; canvas.height = video.videoHeight;
             const ctx = canvas.getContext('2d');
             if (facingMode === "user") { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
@@ -100,19 +148,29 @@
             ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.drawImage(moldura, 0, 0, canvas.width, canvas.height);
             
-            // --- DOWNLOAD AUTOMÁTICO ---
-            // Cria um link temporário e clica nele para baixar
-            const dataURL = canvas.toDataURL('image/png');
+            // Joga a imagem no elemento de preview
+            resultImg.src = canvas.toDataURL('image/png');
+            // Mostra a tela de preview
+            previewScreen.style.display = "flex";
+        }
+
+        // 3. SALVAR (Download)
+        function salvarFoto() {
             const link = document.createElement('a');
-            link.href = dataURL;
-            // Gera um nome de arquivo único com data e hora
+            link.href = resultImg.src;
             const data = new Date();
-            const nomeArquivo = `Foto_HotWheels_${data.getTime()}.png`;
-            link.download = nomeArquivo;
-            
+            link.download = `Foto_HotWheels_${data.getTime()}.png`;
             document.body.appendChild(link);
-            link.click(); // Simula o clique para baixar
-            document.body.removeChild(link); // Limpa o link
+            link.click();
+            document.body.removeChild(link);
+            // Opcional: Fechar preview após salvar? Descomente a linha abaixo se quiser
+            // fecharPreview(); 
+        }
+
+        // 4. VOLTAR (Fechar preview)
+        function fecharPreview() {
+            previewScreen.style.display = "none";
+            resultImg.src = "";
         }
 
         window.addEventListener('load', iniciarCamera);
