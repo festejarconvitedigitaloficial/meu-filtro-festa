@@ -3,118 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Filtro Festa</title>
+    <title>Filtro Hot Wheels</title>
     <style>
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { margin: 0; padding: 0; background-color: #000; overflow: hidden; width: 100%; height: 100%; position: fixed; }
 
         /* VÍDEO (Fundo) */
-        #camera {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            object-fit: cover;
-            z-index: 1;
-        }
-
+        #camera { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         /* MOLDURA (Meio) */
-        #moldura {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            object-fit: fill;
-            z-index: 2;
-            pointer-events: none; /* Deixa o clique passar */
-        }
+        #moldura { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: fill; z-index: 2; pointer-events: none; }
 
-        /* BOTÕES (Frente) */
+        /* CONTROLES */
         .controls {
             position: absolute;
-            bottom: 15%; /* Bem mais alto para não sumir */
-            left: 0;
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 50px;
+            bottom: 12%;
+            left: 0; width: 100%;
+            display: flex; justify-content: center; align-items: center;
+            gap: 40px;
             z-index: 999;
         }
-
-        .btn {
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            transition: transform 0.1s;
-        }
+        .btn { cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; }
         .btn:active { transform: scale(0.9); }
 
-        /* Botão FOTO */
+        /* --- PERSONALIZAÇÃO HOT WHEELS --- */
+
+        /* Botão FOTO (Estilo Pneu com Fogo) */
         .btn-shot {
-            width: 80px; height: 80px;
-            background: transparent;
-            border: 5px solid white;
+            width: 85px; height: 85px;
+            background: #1a1a1a; /* Cor de pneu preto */
+            border: 4px solid #e74c3c; /* Borda vermelha */
             border-radius: 50%;
             position: relative;
+            box-shadow: 0 0 15px #ff4500, inset 0 0 10px #000; /* Brilho de fogo */
         }
+        /* Miolo do botão (Amarelo/Laranja) */
         .btn-shot::after {
-            content: '';
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 65px; height: 65px;
-            background: white;
+            content: ''; position: absolute;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 60px; height: 60px;
+            background: radial-gradient(circle, #ffff00, #ff6b6b); /* Degradê fogo */
+            border: 3px solid #000;
             border-radius: 50%;
         }
 
-        /* Botão VIRAR */
+        /* Botão VIRAR (Estilo Metálico) */
         .btn-flip {
             width: 55px; height: 55px;
-            background: rgba(255,255,255,0.3);
-            border: 2px solid white;
+            background: linear-gradient(145deg, #555555, #222222); /* Metal escuro */
+            border: 2px solid #777;
             border-radius: 50%;
-            color: white;
-            font-size: 25px;
+            color: #ffff00; /* Seta amarela */
+            font-size: 28px;
             display: flex; justify-content: center; align-items: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
         }
 
-        /* TELA DE RESULTADO (Pop-up) */
+        /* TELA DE RESULTADO */
         #preview-screen {
-            display: none; /* Escondido no começo */
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: black;
-            z-index: 10000;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 10000;
+            flex-direction: column; align-items: center; justify-content: center;
         }
-        #result-img {
-            max-width: 90%;
-            max-height: 80%;
-            border: 2px solid white;
-            border-radius: 10px;
-        }
-        #msg-save {
-            color: white;
-            font-family: sans-serif;
-            margin-top: 15px;
-            font-size: 18px;
-            text-align: center;
-        }
+        #result-img { max-width: 90%; max-height: 80%; border: 3px solid #ff4500; border-radius: 10px; }
+        #msg-save { color: #ffff00; font-family: sans-serif; margin-top: 20px; font-size: 18px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
         .btn-close {
-            margin-top: 20px;
-            padding: 10px 30px;
-            background: white;
-            border: none;
-            border-radius: 30px;
-            font-size: 16px;
-            font-weight: bold;
-            color: black;
+            margin-top: 25px; padding: 12px 35px;
+            background: #e74c3c; color: white; border: none; border-radius: 30px;
+            font-size: 18px; font-weight: bold; cursor: pointer;
         }
     </style>
 </head>
 <body>
-
     <video id="camera" autoplay playsinline></video>
     <img id="moldura" src="moldura.png" alt="Moldura">
 
@@ -125,10 +84,9 @@
 
     <div id="preview-screen">
         <img id="result-img" src="">
-        <p id="msg-save">👆 Segure na foto para salvar!</p>
-        <button class="btn btn-close" onclick="fecharPreview()">Voltar</button>
+        <p id="msg-save">🔥 Segure na foto para salvar! 🔥</p>
+        <button class="btn btn-close" onclick="fecharPreview()">VOLTAR PARA PISTA</button>
     </div>
-
     <canvas id="canvasOutput" style="display:none;"></canvas>
 
     <script>
@@ -137,60 +95,36 @@
         const canvas = document.getElementById('canvasOutput');
         const previewScreen = document.getElementById('preview-screen');
         const resultImg = document.getElementById('result-img');
+        // Link direto para um som de shutter curto (hospedado externamente para facilitar)
+        const shutterSound = new Audio('https://cdn.pixabay.com/download/audio/2022/03/10/audio_c04f968038.mp3?filename=camera-shutter-click-03-58060.mp3');
         
         let currentStream;
         let facingMode = "user";
 
         function iniciarCamera() {
             if (currentStream) currentStream.getTracks().forEach(track => track.stop());
-
-            const constraints = {
-                video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
-                audio: false
-            };
-
-            navigator.mediaDevices.getUserMedia(constraints)
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
                 .then(stream => {
-                    currentStream = stream;
-                    video.srcObject = stream;
+                    currentStream = stream; video.srcObject = stream;
                     video.style.transform = facingMode === "user" ? "scaleX(-1)" : "scaleX(1)";
-                })
-                .catch(err => alert("Erro: " + err));
+                }).catch(err => alert("Erro câmera: " + err));
         }
-
-        function virarCamera() {
-            facingMode = facingMode === "user" ? "environment" : "user";
-            iniciarCamera();
-        }
+        function virarCamera() { facingMode = facingMode === "user" ? "environment" : "user"; iniciarCamera(); }
 
         function tirarFoto() {
-            // 1. Configura Canvas
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+            // TOCA O SOM!
+            shutterSound.play().catch(e => console.log("Som bloqueado pelo navegador"));
+
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
             const ctx = canvas.getContext('2d');
-
-            // 2. Desenha Vídeo
-            if (facingMode === "user") {
-                ctx.translate(canvas.width, 0);
-                ctx.scale(-1, 1);
-            }
+            if (facingMode === "user") { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            ctx.setTransform(1, 0, 0, 1, 0, 0); // Reseta
-
-            // 3. Desenha Moldura
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.drawImage(moldura, 0, 0, canvas.width, canvas.height);
-
-            // 4. Mostra o resultado na tela (MODO SEGURO)
-            const dataURL = canvas.toDataURL('image/png');
-            resultImg.src = dataURL;
-            previewScreen.style.display = "flex"; // Abre a janela preta com a foto
+            resultImg.src = canvas.toDataURL('image/png');
+            previewScreen.style.display = "flex";
         }
-
-        function fecharPreview() {
-            previewScreen.style.display = "none";
-            resultImg.src = "";
-        }
-
+        function fecharPreview() { previewScreen.style.display = "none"; resultImg.src = ""; }
         window.addEventListener('load', iniciarCamera);
     </script>
 </body>
